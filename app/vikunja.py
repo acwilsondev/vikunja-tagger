@@ -18,10 +18,17 @@ async def list_labels() -> list[dict]:
         return resp.json()
 
 
+async def get_task(task_id: int) -> dict:
+    async with _client() as client:
+        resp = await client.get(f"/tasks/{task_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def add_label_to_task(task_id: int, label_id: int) -> None:
     async with _client() as client:
         resp = await client.put(f"/tasks/{task_id}/labels", json={"label_id": label_id})
-        # Vikunja returns 500 with a "label is already added" message if it's
-        # already on the task - not worth failing the whole request over.
-        if resp.status_code >= 400 and "already added" not in resp.text.lower():
+        # Vikunja rejects a label that's already on the task (seen as both
+        # 400 and 500, wording varies) - not worth failing the request over.
+        if resp.status_code >= 400 and "already" not in resp.text.lower():
             resp.raise_for_status()

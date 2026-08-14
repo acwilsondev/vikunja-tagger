@@ -29,7 +29,12 @@ async def vikunja_webhook(request: Request, x_vikunja_signature: str | None = He
     task = payload["data"]["task"]
     task_id = task["id"]
 
-    if task.get("labels"):
+    # The task embedded in the webhook payload is a snapshot from when the
+    # event fired, always unlabeled for a brand-new task - checking it
+    # wouldn't catch a redelivery of the same event. Check live state
+    # instead, which also makes redelivery a safe no-op.
+    current = await vikunja.get_task(task_id)
+    if current.get("labels"):
         log.info("task %s already has labels, skipping", task_id)
         return {"status": "skipped", "reason": "already labeled"}
 
