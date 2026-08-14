@@ -39,9 +39,8 @@ async def vikunja_webhook(request: Request, x_vikunja_signature: str | None = He
         return {"status": "skipped", "reason": "already labeled"}
 
     existing_labels = await vikunja.list_labels()
-    label_titles = [label["title"] for label in existing_labels]
 
-    chosen = await ollama.suggest_labels(task["title"], task.get("description", ""), label_titles)
+    chosen = await ollama.suggest_labels(task["title"], task.get("description", ""), existing_labels)
     if not chosen:
         log.info("task %s: no labels suggested", task_id)
         return {"status": "tagged", "labels": []}

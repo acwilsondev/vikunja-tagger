@@ -9,12 +9,39 @@ existing Vikunja labels only (it never invents new ones).
 1. Vikunja calls `POST /webhooks/vikunja` on task creation (configured as a
    per-project webhook in Vikunja itself), signing the body with a shared
    secret (`X-Vikunja-Signature`, HMAC-SHA256 hex digest).
-2. The worker verifies the signature, fetches your current Vikunja labels,
-   and asks Ollama to pick zero or more of them for the new task based on
+2. The worker verifies the signature, fetches your current Vikunja labels
+   (title + description, so the model sees your own definitions, not
+   guesses), and asks Ollama to pick zero or more for the new task based on
    its title/description.
 3. It applies the chosen labels back to the task via the Vikunja API.
 
-Tasks that already have labels when the event fires are skipped.
+Tasks that already have labels when the event fires are skipped (checked
+against live task state, so a redelivery of the same event is a no-op).
+
+## Tagging rule
+
+Each label's own description is classified by convention:
+- Title starting `effort:` → an **effort** label (mutually exclusive - the
+  model must pick exactly one).
+- Description starting `Context -` → a **context** label.
+- Description starting `Flag -` → a **flag** label (structural markers like
+  `waiting_for`/`repeating` - the model is told never to guess these on its
+  own, `waiting_for` excepted).
+- Anything else → an **other** label, an optional extra.
+
+Every task must end up with either exactly one effort label plus at least
+one context label, or `waiting_for` on its own. This is enforced in code
+(`app/ollama.py::_satisfies_rule`), not just requested in the prompt - if
+the model's first answer doesn't satisfy it, the worker sends one
+corrective retry with the violation spelled out before giving up and
+applying whatever it got (logged as a warning either way).
+
+The prompt (`SYSTEM_PROMPT` in `app/ollama.py`) also carries a few
+calibration examples, mainly to stop the model conflating "this task
+involves someone else" with `waiting_for` - e.g. "call the dentist to
+reschedule" is an action *you* take (`calls` + an effort label), not
+something you're already blocked waiting on. Tune those examples there if
+you see it miscategorize a real task the same way.
 
 ## Configuration
 
