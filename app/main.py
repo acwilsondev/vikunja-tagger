@@ -35,19 +35,19 @@ async def vikunja_webhook(request: Request, x_vikunja_signature: str | None = He
     # instead, which also makes redelivery a safe no-op.
     current = await vikunja.get_task(task_id)
     if current.get("labels"):
-        log.info("task %s already has labels, skipping", task_id)
+        log.info("task %s (%r) already has labels, skipping", task_id, task["title"])
         return {"status": "skipped", "reason": "already labeled"}
 
     existing_labels = await vikunja.list_labels()
 
     chosen = await ollama.suggest_labels(task["title"], task.get("description", ""), existing_labels)
     if not chosen:
-        log.info("task %s: no labels suggested", task_id)
+        log.info("task %s (%r): no labels suggested", task_id, task["title"])
         return {"status": "tagged", "labels": []}
 
     label_id_by_title = {label["title"]: label["id"] for label in existing_labels}
     for title in chosen:
         await vikunja.add_label_to_task(task_id, label_id_by_title[title])
 
-    log.info("task %s: applied labels %s", task_id, chosen)
+    log.info("task %s (%r): applied labels %s", task_id, task["title"], chosen)
     return {"status": "tagged", "labels": chosen}
