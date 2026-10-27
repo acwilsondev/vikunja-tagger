@@ -14,3 +14,7 @@ WEBHOOK_SECRET = _require("WEBHOOK_SECRET")
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:latest")
+
+# How many recently completed tasks to show the model as tagging examples.
+# 0 disables the feature.
+EXAMPLE_COUNT = int(os.environ.get("EXAMPLE_COUNT", "20"))

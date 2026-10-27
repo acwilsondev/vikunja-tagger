@@ -32,3 +32,18 @@ async def add_label_to_task(task_id: int, label_id: int) -> None:
         # 400 and 500, wording varies) - not worth failing the request over.
         if resp.status_code >= 400 and "already" not in resp.text.lower():
             resp.raise_for_status()
+
+
+async def list_recent_completed(limit: int) -> list[dict]:
+    async with _client() as client:
+        resp = await client.get(
+            "/tasks",
+            params={
+                "filter": "done = true",
+                "sort_by": "done_at",
+                "order_by": "desc",
+                "per_page": limit,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
