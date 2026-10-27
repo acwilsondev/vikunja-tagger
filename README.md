@@ -192,6 +192,7 @@ Copy `.env.example` to `.env` and fill in:
 | `WEBHOOK_SECRET` | Shared secret you also set on the Vikunja webhook |
 | `OLLAMA_URL` | Base URL of an Ollama server reachable from wherever this runs |
 | `OLLAMA_MODEL` | Model to use (default `llama3.1:latest`) |
+| `EXAMPLE_COUNT` | How many recently completed tasks (with their labels) to show the model as tagging examples (default `20`, `0` disables). Needs read on tasks |
 
 ## Local development
 

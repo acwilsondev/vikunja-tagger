@@ -86,9 +86,40 @@ def _build_catalog(labels: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def _ask(title: str, description: str, catalog: str, correction: str | None) -> list[str]:
-    user_prompt = (
-        f"Allowed labels:\n{catalog}\n\n"
+def select_examples(completed: list[dict], labels_by_title: dict[str, dict]) -> list[tuple[str, list[str]]]:
+    """Reduce completed tasks to (title, labels) pairs worth showing the model.
+
+    Only tasks whose labels satisfy the tagging rule are kept - others
+    (untagged, or tagged before the rule existed) would teach nothing.
+    """
+    examples = []
+    for task in completed:
+        titles = [lbl["title"] for lbl in task.get("labels") or []]
+        if titles and _satisfies_rule(titles, labels_by_title):
+            examples.append((task["title"], titles))
+    return examples
+
+
+def _build_examples_block(examples: list[tuple[str, list[str]]]) -> str:
+    lines = [f"- {title!r} -> {labels}" for title, labels in examples]
+    return (
+        "Recently completed tasks and how they were tagged. Use these only to "
+        "calibrate to this user's habits; the allowed labels and rules above "
+        "still take precedence:\n" + "\n".join(lines)
+    )
+
+
+async def _ask(
+    title: str,
+    description: str,
+    catalog: str,
+    correction: str | None,
+    examples: list[tuple[str, list[str]]] | None = None,
+) -> list[str]:
+    user_prompt = f"Allowed labels:\n{catalog}\n\n"
+    if examples:
+        user_prompt += _build_examples_block(examples) + "\n\n"
+    user_prompt += (
         f"Task title: {title}\n"
         f"Task description: {description or '(none)'}"
     )
@@ -119,7 +150,12 @@ async def _ask(title: str, description: str, catalog: str, correction: str | Non
         return []
 
 
-async def suggest_labels(title: str, description: str, labels: list[dict]) -> list[str]:
+async def suggest_labels(
+    title: str,
+    description: str,
+    labels: list[dict],
+    examples: list[tuple[str, list[str]]] | None = None,
+) -> list[str]:
     if not labels:
         return []
 
@@ -130,7 +166,7 @@ async def suggest_labels(title: str, description: str, labels: list[dict]) -> li
     def _validate(raw: list[str]) -> list[str]:
         return [allowed_lower[t.lower()] for t in raw if t.lower() in allowed_lower]
 
-    chosen = _validate(await _ask(title, description, catalog, correction=None))
+    chosen = _validate(await _ask(title, description, catalog, correction=None, examples=examples))
 
     if not _satisfies_rule(chosen, labels_by_title):
         correction = (
@@ -138,7 +174,7 @@ async def suggest_labels(title: str, description: str, labels: list[dict]) -> li
             "required rule: it needs exactly one effort label plus at least one "
             "context label, or the waiting_for label. Pick again, correctly this time."
         )
-        chosen = _validate(await _ask(title, description, catalog, correction))
+        chosen = _validate(await _ask(title, description, catalog, correction, examples))
 
     if not _satisfies_rule(chosen, labels_by_title):
         log.warning("task %r: could not satisfy tagging rule, applying best effort %s", title, chosen)
